@@ -4,6 +4,8 @@ import (
 	"expvar"
 	"fmt"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"time"
 
@@ -26,6 +28,7 @@ func run(log *log.Logger) error {
 
 	// =============================================================================================
 	// Configuration
+
 	cfg := struct {
 		conf.Version
 		Web struct {
@@ -74,6 +77,23 @@ func run(log *log.Logger) error {
 		return errors.Wrap(err, "generating config for output")
 	}
 	log.Printf("main: config: \n%v\n", out)
+
+	// =============================================================================================
+	// Start Debug Service
+	//
+	// /debug/pprof - Added to default mux by importing the net/http/pprof packege.
+	// /debug/vars - Added to default mux by importing the expvar packege.
+
+	log.Println("main: initializing debugging support")
+
+	go func() {
+		log.Printf("main: debug listening %s", cfg.Web.DebugHost)
+		if err := http.ListenAndServe(cfg.Web.DebugHost, http.DefaultServeMux); err != nil {
+			log.Printf("main: debug listener closed: %v", err)
+		}
+	}()
+
+	select {}
 
 	return nil
 }
