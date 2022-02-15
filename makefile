@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 default:
 	go build -o bin/financify-api ./app/financify-api/main.go
 
