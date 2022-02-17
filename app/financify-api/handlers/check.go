@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -10,11 +11,11 @@ type check struct {
 	log *log.Logger
 }
 
-func (c check) readiness(rw http.ResponseWriter, r *http.Request) {
+func (c check) readiness(ctx context.Context, rw http.ResponseWriter, r *http.Request) error {
 	status := struct {
 		Status string
 	}{
 		Status: "OK",
 	}
-	json.NewEncoder(rw).Encode(status)
+	return json.NewEncoder(rw).Encode(status)
 }
