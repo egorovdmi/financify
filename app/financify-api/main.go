@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/ardanlabs/conf"
+	"github.com/egorovdmi/financify/app/financify-api/handlers"
 	"github.com/pkg/errors"
 )
 
@@ -93,7 +97,44 @@ func run(log *log.Logger) error {
 		}
 	}()
 
-	select {}
+	// =============================================================================================
+	// Start API Service
+
+	log.Println("main: initializing API support")
+
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+
+	api := http.Server{
+		Addr:         cfg.Web.APIHost,
+		Handler:      handlers.API(build, shutdown, log),
+		ReadTimeout:  cfg.Web.ReadTimeout,
+		WriteTimeout: cfg.Web.WriteTimeout,
+	}
+
+	serverErrors := make(chan error, 1)
+
+	go func() {
+		log.Printf("main: API listening on %s", api.Addr)
+		serverErrors <- api.ListenAndServe()
+	}()
+
+	// Blocking main and waiting for shutdown
+	select {
+	case err := <-serverErrors:
+		return errors.Wrap(err, "server error")
+
+	case sig := <-shutdown:
+		log.Printf("main: %v: start shutdown", sig)
+
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.Web.ShutdownTimeout)
+		defer cancel()
+
+		if err := api.Shutdown(ctx); err != nil {
+			api.Close()
+			return errors.Wrap(err, "could not stop server gracefully")
+		}
+	}
 
 	return nil
 }
