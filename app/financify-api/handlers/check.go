@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/egorovdmi/financify/foundation/web"
 )
 
 type check struct {
@@ -17,5 +18,5 @@ func (c check) readiness(ctx context.Context, rw http.ResponseWriter, r *http.Re
 	}{
 		Status: "OK",
 	}
-	return json.NewEncoder(rw).Encode(status)
+	return web.Respond(ctx, rw, status, http.StatusOK)
 }
