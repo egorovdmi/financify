@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/egorovdmi/financify/business/mid"
 	"github.com/egorovdmi/financify/foundation/web"
 )
 
 func API(build string, shutdown chan os.Signal, log *log.Logger) *web.App {
-	app := web.NewApp(shutdown)
+	app := web.NewApp(shutdown, mid.Logger(log))
 
 	check := check{
 		log: log,

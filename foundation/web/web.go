@@ -37,6 +37,7 @@ func NewApp(shutdown chan os.Signal, mw ...Middleware) *App {
 	app := App{
 		ContextMux: httptreemux.NewContextMux(),
 		shutdown:   shutdown,
+		mw:         mw,
 	}
 
 	return &app
@@ -55,18 +56,17 @@ func (a *App) Handle(method string, path string, handler Handler, mw ...Middlewa
 	handler = wrapMiddleware(a.mw, handler)
 
 	h := func(rw http.ResponseWriter, r *http.Request) {
+		// Initialize TraceID data
 		v := Values{
 			TraceID: uuid.New().String(),
 			Now:     time.Now(),
 		}
 		ctx := context.WithValue(r.Context(), KeyValues, &v)
 
-		if err := handler(ctx, rw, r); err != nil {
+		if err := handler(ctx, rw, r); err != nil && IsShutdown(err) {
 			a.SignalShutdown()
 			return
 		}
-
-		// BOILERPLATE
 	}
 
 	a.ContextMux.Handle(method, path, h)
