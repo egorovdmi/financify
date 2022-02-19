@@ -63,7 +63,7 @@ func (a *App) Handle(method string, path string, handler Handler, mw ...Middlewa
 		}
 		ctx := context.WithValue(r.Context(), KeyValues, &v)
 
-		if err := handler(ctx, rw, r); err != nil && IsShutdown(err) {
+		if err := handler(ctx, rw, r); err != nil {
 			a.SignalShutdown()
 			return
 		}
