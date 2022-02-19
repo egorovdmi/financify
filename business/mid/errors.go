@@ -20,7 +20,7 @@ func Errors(log *log.Logger) web.Middleware {
 
 			// execute core handler
 			if err := handler(ctx, rw, r); err != nil {
-				log.Printf("%s : ERROR     : %+v", v.TraceID, err)
+				log.Printf("%s : ERROR     : %v", v.TraceID, err)
 
 				if err := web.RespondError(ctx, rw, err); err != nil {
 					return err
