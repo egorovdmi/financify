@@ -9,3 +9,6 @@ tidy:
 
 run:
 	go run ./app/financify-api/main.go
+
+runk:
+	go run ./app/keygen/main.go
