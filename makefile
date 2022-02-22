@@ -12,3 +12,8 @@ run:
 
 runk:
 	go run ./app/keygen/main.go
+
+test:
+# -count=1 means, don't use the cache 
+	go test -v ./... -count=1
+	staticcheck ./...
