@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"expvar"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -14,6 +16,8 @@ import (
 
 	"github.com/ardanlabs/conf"
 	"github.com/egorovdmi/financify/app/financify-api/handlers"
+	"github.com/egorovdmi/financify/business/auth"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/pkg/errors"
 )
 
@@ -41,6 +45,11 @@ func run(log *log.Logger) error {
 			ReadTimeout     time.Duration `conf:"default:5s"`
 			WriteTimeout    time.Duration `conf:"default:5s"`
 			ShutdownTimeout time.Duration `conf:"default:5s"`
+		}
+		Auth struct {
+			KeyID          string `conf:"default:4c884828-c5f2-4b57-98f5-731055e894e0"`
+			PrivateKeyFile string `conf:"default:./private.pem"`
+			Algorithm      string `conf:"default:RS256"`
 		}
 	}{
 		Version: conf.Version{
@@ -83,6 +92,34 @@ func run(log *log.Logger) error {
 	log.Printf("main: config: \n%v\n", out)
 
 	// =============================================================================================
+	// Initialize authentication support
+
+	log.Println("main: initializing authentication support")
+
+	privatePEM, err := ioutil.ReadFile(cfg.Auth.PrivateKeyFile)
+	if err != nil {
+		return errors.Wrap(err, "reading auth private key")
+	}
+
+	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(privatePEM)
+	if err != nil {
+		return errors.Wrap(err, "parsing auth private key")
+	}
+
+	lookup := func(kid string) (*rsa.PublicKey, error) {
+		switch kid {
+		case cfg.Auth.KeyID:
+			return &privateKey.PublicKey, nil
+		}
+		return nil, fmt.Errorf("no public key found for the specified kid: %s", kid)
+	}
+
+	auth, err := auth.New(cfg.Auth.Algorithm, lookup, auth.Keys{cfg.Auth.KeyID: privateKey})
+	if err != nil {
+		return errors.Wrap(err, "constructing auth")
+	}
+
+	// =============================================================================================
 	// Start Debug Service
 	//
 	// /debug/pprof - Added to default mux by importing the net/http/pprof packege.
@@ -107,7 +144,7 @@ func run(log *log.Logger) error {
 
 	api := http.Server{
 		Addr:         cfg.Web.APIHost,
-		Handler:      handlers.API(build, shutdown, log),
+		Handler:      handlers.API(build, shutdown, log, auth),
 		ReadTimeout:  cfg.Web.ReadTimeout,
 		WriteTimeout: cfg.Web.WriteTimeout,
 	}
