@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fin-pod # Base POD name
+spec:
+  selector:
+    matchLabels:
+      app: fin # Selector for POD name search.
+  template:
+    metadata:
+      labels:
+        app: fin
+    spec:
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
+      containers:
+      - name: zipkin
+        image: openzipkin/zipkin:2.23
+        ports:
+        - name: zipkin
+          containerPort: 9411
+      # financify-api container configuration
+      - name: fin-api
+        image: financify-api-amd64:1.0
+        ports:
+        - name: fin-api
+          containerPort: 3000
+        - name: fin-api-debug
+          containerPort: 4000
+        readinessProbe: # readiness probes mark the service available to accept traffic.
+          httpGet:
+            path: /readiness
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        livenessProbe: # liveness probes mark the service alive or dead (to be restarted).
+          httpGet:
+            path: /liveness
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        env:
+        - name: FINANCIFY_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: db_host
+        - name: KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: KUBERNETES_PODNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: KUBERNETES_NAMESPACE_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: KUBERNETES_NODENAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fin-api-service
+spec:
+  type: ClusterIP
+  selector:
+    app: fin
+  ports:
+  - name: zipkin
+    port: 9411
+    targetPort: zipkin
+  - name: fin-api
+    port: 3000
+    targetPort: fin-api
+  - name: fin-api-debug
+    port: 4000
+    targetPort: fin-api-debug
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fin-api-service-lb
+spec:
+  type: LoadBalancer
+  selector:
+    app: fin
+  ports:
+  - name: zipkin
+    port: 9411
+    targetPort: zipkin
+  - name: fin-api
+    port: 3000
+    targetPort: fin-api
+  - name: fin-api-debug
+    port: 4000
+    targetPort: fin-api-debug

@@ -14,6 +14,23 @@ financify:
 		--build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
 		.
 
+deploy: financify
+	kustomize build ./zarf/k8s/dev | kubectl apply -f -
+
+remove:
+	kustomize build ./zarf/k8s/dev | kubectl delete -f -
+
+upgrade: financify
+	kubectl delete pods -lapp=fin
+
+status:
+	kubectl get nodes
+	kubectl describe pod -lapp=fin
+	kubectl get service
+
+logs:
+	kubectl logs -lapp=fin --all-containers=true -f
+
 tidy:
 	go mod tidy
 	go mod vendor
@@ -25,5 +42,5 @@ runk:
 	go run ./app/keygen/main.go
 
 test:
-# -count=1 means, don't use the cache 
+# -count=1 means, don't use the cache
 	go test -v ./... -count=1
