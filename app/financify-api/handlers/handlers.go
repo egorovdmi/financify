@@ -14,10 +14,11 @@ func API(build string, shutdown chan os.Signal, log *log.Logger, a *auth.Auth) *
 	app := web.NewApp(shutdown, mid.Logger(log), mid.Errors(log), mid.Metrics(), mid.Panics(log))
 
 	check := check{
-		log: log,
+		log:   log,
+		build: build,
 	}
 	app.Handle(http.MethodGet, "/readiness", check.readiness)
-	app.Handle(http.MethodGet, "/liveness", check.readiness)
+	app.Handle(http.MethodGet, "/liveness", check.liveness)
 
 	return app
 }

@@ -7,7 +7,7 @@ COPY . /service
 
 # Build the service binary
 WORKDIR /service/app/financify-api
-RUN go build -ldflags "-X main.build={BUILD_REF}"
+RUN go build -ldflags "-X main.build=${BUILD_REF}"
 
 # Run the GO binary from Apline
 FROM alpine:3.15
