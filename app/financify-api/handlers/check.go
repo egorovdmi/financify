@@ -2,28 +2,38 @@ package handlers
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 
+	"github.com/egorovdmi/financify/foundation/database"
 	"github.com/egorovdmi/financify/foundation/web"
+	"github.com/jmoiron/sqlx"
 )
 
-type check struct {
-	log   *log.Logger
+type checkGroup struct {
 	build string
+	db    *sqlx.DB
 }
 
-func (c check) readiness(ctx context.Context, rw http.ResponseWriter, r *http.Request) error {
-	status := struct {
+func (cg checkGroup) readiness(ctx context.Context, rw http.ResponseWriter, r *http.Request) error {
+	status := "ok"
+	statusCode := http.StatusOK
+
+	err := database.StatusCheck(ctx, cg.db)
+	if err != nil {
+		status = "can't query database"
+		statusCode = http.StatusInternalServerError
+	}
+
+	data := struct {
 		Status string
 	}{
-		Status: "OK",
+		Status: status,
 	}
-	return web.Respond(ctx, rw, status, http.StatusOK)
+	return web.Respond(ctx, rw, data, statusCode)
 }
 
-func (c check) liveness(ctx context.Context, rw http.ResponseWriter, r *http.Request) error {
+func (cg checkGroup) liveness(ctx context.Context, rw http.ResponseWriter, r *http.Request) error {
 
 	host, err := os.Hostname()
 	if err != nil {
@@ -40,7 +50,7 @@ func (c check) liveness(ctx context.Context, rw http.ResponseWriter, r *http.Req
 		Namespace string `json:"namespace,omitempty"`
 	}{
 		Status:    "up",
-		Build:     c.build,
+		Build:     cg.build,
 		Host:      host,
 		Pod:       os.Getenv("KUBERNETES_PODNAME"),
 		PodIP:     os.Getenv("KUBERNETES_NAMESPACE_POD_IP"),

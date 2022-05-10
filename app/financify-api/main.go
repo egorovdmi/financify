@@ -17,6 +17,7 @@ import (
 	"github.com/ardanlabs/conf"
 	"github.com/egorovdmi/financify/app/financify-api/handlers"
 	"github.com/egorovdmi/financify/business/auth"
+	"github.com/egorovdmi/financify/foundation/database"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/pkg/errors"
 )
@@ -50,6 +51,13 @@ func run(log *log.Logger) error {
 			KeyID          string `conf:"default:90a50c59-e095-4c36-b9a3-54f83a3832e2"`
 			PrivateKeyFile string `conf:"default:./private.pem"`
 			Algorithm      string `conf:"default:RS256"`
+		}
+		DB struct {
+			Host       string `conf:"default:database-service"`
+			User       string `conf:"default:postgres"`
+			Password   string `conf:"default:postgres"`
+			Name       string `conf:"default:postgres"`
+			DisableTLS bool   `conf:"default:true"`
 		}
 	}{
 		Version: conf.Version{
@@ -120,6 +128,26 @@ func run(log *log.Logger) error {
 	}
 
 	// =============================================================================================
+	// Initialize database support
+	log.Println("main: initializing database support")
+	db, err := database.Open(database.Config{
+		Host:       cfg.DB.Host,
+		Name:       cfg.DB.Name,
+		User:       cfg.DB.User,
+		Password:   cfg.DB.Password,
+		DisableTLS: cfg.DB.DisableTLS,
+	})
+
+	if err != nil {
+		return errors.Wrap(err, "connection to db")
+	}
+
+	defer func() {
+		log.Printf("main: Database stopping : %s", cfg.DB.Host)
+		db.Close()
+	}()
+
+	// =============================================================================================
 	// Start Debug Service
 	//
 	// /debug/pprof - Added to default mux by importing the net/http/pprof packege.
@@ -144,7 +172,7 @@ func run(log *log.Logger) error {
 
 	api := http.Server{
 		Addr:         cfg.Web.APIHost,
-		Handler:      handlers.API(build, shutdown, log, auth),
+		Handler:      handlers.API(build, shutdown, log, auth, db),
 		ReadTimeout:  cfg.Web.ReadTimeout,
 		WriteTimeout: cfg.Web.WriteTimeout,
 	}
