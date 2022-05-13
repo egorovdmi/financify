@@ -30,6 +30,11 @@ spec:
             configMapKeyRef:
               name: app-config
               key: db_password
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: db_name
         ports:
         - name: postgres
           containerPort: 5432
