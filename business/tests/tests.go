@@ -16,8 +16,8 @@ import (
 
 // Success and failure markers.
 const (
-	Success = "\u2713"
-	Failed  = "\u2717"
+	Success = "\033[32m\u2713\033[0m"
+	Failed  = "\033[31m\u2717\033[0m"
 )
 
 // Configuration for runnung tests.

@@ -96,9 +96,9 @@ func (r UserRepository) Update(ctx context.Context, traceID string, claims auth.
 		WHERE user_id=$1`
 
 	r.log.Printf("%s : %s : query : %s", traceID, "UserRepository.Update",
-		database.Log(q, u.ID, u.Name, u.Email, u.Roles, u.PasswordHash, u.DateCreated, u.DateUpdated))
+		database.Log(q, u.ID, u.Name, u.Email, u.Roles, u.PasswordHash, u.DateUpdated))
 
-	if _, err = r.db.ExecContext(ctx, q, u.ID, u.Name, u.Email, u.Roles, u.PasswordHash, u.DateCreated, u.DateUpdated); err != nil {
+	if _, err = r.db.ExecContext(ctx, q, u.ID, u.Name, u.Email, u.Roles, u.PasswordHash, u.DateUpdated); err != nil {
 		return errors.Wrap(err, "updating user")
 	}
 

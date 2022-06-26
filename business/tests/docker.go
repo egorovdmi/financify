@@ -54,7 +54,7 @@ func startContainer(t *testing.T, image string, port string, args ...string) *Co
 }
 
 func stopContainer(t *testing.T, id string) {
-	if err := exec.Command("docker", "stop", id); err != nil {
+	if err := exec.Command("docker", "stop", id).Run(); err != nil {
 		t.Fatalf("couldn't stop container: %v", err)
 	}
 	t.Logf("Stopped: %s", id)
