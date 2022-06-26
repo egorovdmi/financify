@@ -8,6 +8,7 @@ import (
 
 	"github.com/egorovdmi/financify/business/auth"
 	"github.com/egorovdmi/financify/foundation/database"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
@@ -16,9 +17,10 @@ import (
 
 // Set of error variables for CRUD operations.
 var (
-	ErrNotFound  = errors.New("user not found")
-	ErrInvalidID = errors.New("ID is not in its proper form")
-	ErrForbidden = errors.New("authorization failed")
+	ErrNotFound              = errors.New("user not found")
+	ErrInvalidID             = errors.New("ID is not in its proper form")
+	ErrForbidden             = errors.New("authorization failed")
+	ErrAuthenticationFailure = errors.New("authentication failed")
 )
 
 type UserRepository struct {
@@ -180,4 +182,55 @@ func (r UserRepository) QueryByEmail(ctx context.Context, traceID string, claims
 	}
 
 	return u, nil
+}
+
+func (r UserRepository) Authenticate(ctx context.Context, traceID string, email string, password string, now time.Time) (auth.Claims, error) {
+	adminClaims := auth.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "service project",
+			Audience:  jwt.ClaimStrings{"students"},
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(now),
+		},
+		Roles: []string{auth.RoleAdmin},
+	}
+
+	usr, err := r.QueryByEmail(ctx, traceID, adminClaims, email)
+	if err != nil {
+		switch err {
+		case ErrNotFound:
+			return auth.Claims{}, ErrAuthenticationFailure
+		case ErrForbidden:
+			return auth.Claims{}, ErrAuthenticationFailure
+		default:
+			return auth.Claims{}, errors.Wrap(err, "unable to query user by email")
+		}
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return auth.Claims{}, errors.Wrap(err, "generation password hash")
+	}
+
+	if len(usr.PasswordHash) != len(hash) {
+		return auth.Claims{}, ErrAuthenticationFailure
+	}
+
+	for i, b := range usr.PasswordHash {
+		if b != hash[i] {
+			return auth.Claims{}, ErrAuthenticationFailure
+		}
+	}
+
+	claims := auth.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "service project",
+			Audience:  jwt.ClaimStrings{"students"},
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(now),
+		},
+		Roles: []string{auth.RoleUser},
+	}
+
+	return claims, nil
 }
