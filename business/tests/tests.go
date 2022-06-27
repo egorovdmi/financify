@@ -2,12 +2,17 @@ package tests
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"fmt"
 	"log"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/egorovdmi/financify/business/auth"
 	"github.com/egorovdmi/financify/business/data/dbschema"
+	"github.com/egorovdmi/financify/business/data/user"
 	"github.com/egorovdmi/financify/foundation/database"
 	"github.com/egorovdmi/financify/foundation/web"
 	"github.com/google/uuid"
@@ -99,4 +104,76 @@ func StringPointer(s string) *string {
 // IntPointer is a helper method for take a pointer of an int. Useful for tests.
 func IntPointer(i int) *int {
 	return &i
+}
+
+type Test struct {
+	TraceID string
+	DB      *sqlx.DB
+	Log     *log.Logger
+	Auth    *auth.Auth
+	KID     string
+
+	t       *testing.T
+	cleanup func()
+}
+
+func NewIntegration(t *testing.T) *Test {
+	log, db, teardown := NewUnit(t)
+	ctx := Context()
+
+	if err := dbschema.Seed(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+
+	// Generate RSA key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Build an authenticator
+	const keyID = "7a7fb378-d885-43ad-aa25-a0b33bca287f"
+	lookup := func(kid string) (*rsa.PublicKey, error) {
+		switch kid {
+		case keyID:
+			return &privateKey.PublicKey, nil
+		}
+		return nil, fmt.Errorf("no public key found for the specified kid: %s", kid)
+	}
+
+	auth, err := auth.New("RS256", lookup, auth.Keys{keyID: privateKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test := Test{
+		TraceID: "00000000-0000-0000-0000-000000000000",
+		DB:      db,
+		Log:     log,
+		Auth:    auth,
+		KID:     keyID,
+		t:       t,
+		cleanup: teardown,
+	}
+
+	return &test
+}
+
+func (test *Test) Teardown() {
+	test.cleanup()
+}
+
+func (test *Test) Token(kid string, email string, pass string) string {
+	userRepo := user.NewUserRepository(test.Log, test.DB)
+	claims, err := userRepo.Authenticate(context.Background(), test.TraceID, email, pass, time.Now())
+	if err != nil {
+		test.t.Fatal(err)
+	}
+
+	token, err := test.Auth.GenerateToken(test.KID, claims)
+	if err != nil {
+		test.t.Fatal(err)
+	}
+
+	return token
 }
