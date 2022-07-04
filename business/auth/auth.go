@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	RoleAdmin = "admin"
-	RoleUser  = "user"
+	RoleAdmin = "ADMIN"
+	RoleUser  = "USER"
 )
 
 type ctxKey int

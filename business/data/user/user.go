@@ -207,29 +207,19 @@ func (r UserRepository) Authenticate(ctx context.Context, traceID string, email 
 		}
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return auth.Claims{}, errors.Wrap(err, "generation password hash")
-	}
-
-	if len(usr.PasswordHash) != len(hash) {
+	if err := bcrypt.CompareHashAndPassword(usr.PasswordHash, []byte(password)); err != nil {
 		return auth.Claims{}, ErrAuthenticationFailure
-	}
-
-	for i, b := range usr.PasswordHash {
-		if b != hash[i] {
-			return auth.Claims{}, ErrAuthenticationFailure
-		}
 	}
 
 	claims := auth.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "service project",
+			Subject:   usr.ID,
 			Audience:  jwt.ClaimStrings{"students"},
 			ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
-		Roles: []string{auth.RoleUser},
+		Roles: usr.Roles,
 	}
 
 	return claims, nil
