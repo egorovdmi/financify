@@ -27,6 +27,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("database migration error, %v", err)
 	}
-
 	log.Println("Database migration complete")
+
+	err = dbschema.Seed(context.Background(), db)
+	if err != nil {
+		log.Fatalf("database seed error, %v", err)
+	}
+	log.Println("Database seed complete")
 }
