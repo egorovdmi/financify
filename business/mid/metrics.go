@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/egorovdmi/financify/foundation/web"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var m = struct {
@@ -22,6 +23,10 @@ var m = struct {
 func Metrics() web.Middleware {
 	m := func(handler web.Handler) web.Handler {
 		h := func(ctx context.Context, rw http.ResponseWriter, r *http.Request) error {
+			currentSpan := trace.SpanFromContext(ctx)
+			ctx, span := currentSpan.TracerProvider().Tracer("").Start(ctx, "business.mid.metrics")
+			defer span.End()
+
 			err := handler(ctx, rw, r)
 
 			m.req.Add(1)

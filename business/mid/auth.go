@@ -8,6 +8,7 @@ import (
 	"github.com/egorovdmi/financify/business/auth"
 	"github.com/egorovdmi/financify/foundation/web"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var ErrForbidden = web.NewRequestError(
@@ -17,6 +18,10 @@ var ErrForbidden = web.NewRequestError(
 func Authenticate(a *auth.Auth) web.Middleware {
 	m := func(handler web.Handler) web.Handler {
 		h := func(ctx context.Context, rw http.ResponseWriter, r *http.Request) (err error) {
+			currentSpan := trace.SpanFromContext(ctx)
+			ctx, span := currentSpan.TracerProvider().Tracer("").Start(ctx, "business.mid.authenticate")
+			defer span.End()
+
 			// Parse the authorization header.
 			// Expected: `Bearer <token>`.
 			authHeaderValue := r.Header.Get("Authorization")
@@ -47,6 +52,10 @@ func Authenticate(a *auth.Auth) web.Middleware {
 func Authorize(roles ...string) web.Middleware {
 	m := func(handler web.Handler) web.Handler {
 		h := func(ctx context.Context, rw http.ResponseWriter, r *http.Request) (err error) {
+			currentSpan := trace.SpanFromContext(ctx)
+			ctx, span := currentSpan.TracerProvider().Tracer("").Start(ctx, "business.mid.authorize")
+			defer span.End()
+
 			// Extracting TraceID from the context
 			claims, ok := ctx.Value(auth.Key).(auth.Claims)
 			if !ok {

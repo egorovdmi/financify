@@ -8,11 +8,15 @@ import (
 
 	"github.com/egorovdmi/financify/foundation/web"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func Panics(log *log.Logger) web.Middleware {
 	m := func(handler web.Handler) web.Handler {
 		h := func(ctx context.Context, rw http.ResponseWriter, r *http.Request) (err error) {
+			currentSpan := trace.SpanFromContext(ctx)
+			ctx, span := currentSpan.TracerProvider().Tracer("").Start(ctx, "business.mid.panics")
+			defer span.End()
 
 			// Extracting TraceID from the context
 			v, ok := ctx.Value(web.KeyValues).(*web.Values)

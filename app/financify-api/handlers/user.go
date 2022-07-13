@@ -8,6 +8,7 @@ import (
 	"github.com/egorovdmi/financify/business/data/user"
 	"github.com/egorovdmi/financify/foundation/web"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type userGroup struct {
@@ -16,6 +17,10 @@ type userGroup struct {
 }
 
 func (ug userGroup) query(ctx context.Context, rw http.ResponseWriter, r *http.Request) error {
+	currentSpan := trace.SpanFromContext(ctx)
+	ctx, span := currentSpan.TracerProvider().Tracer("").Start(ctx, "handlers.userGroup.query")
+	defer span.End()
+
 	v, ok := ctx.Value(web.KeyValues).(*web.Values)
 	if !ok {
 		return web.NewShutdownError("web value missing from context")

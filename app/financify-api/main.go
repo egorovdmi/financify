@@ -20,6 +20,12 @@ import (
 	"github.com/egorovdmi/financify/foundation/database"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/zipkin"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
 // build is the git version of this program. It is set using build flags in the makefile.
@@ -58,6 +64,11 @@ func run(log *log.Logger) error {
 			Password   string `conf:"default:postgres"`
 			Name       string `conf:"default:postgres"`
 			DisableTLS bool   `conf:"default:true"`
+		}
+		Zipkin struct {
+			ReporterURI string  `conf:"default:http://localhost:9411/api/v2/spans"`
+			ServiceName string  `conf:"default:financify-api"`
+			Probability float64 `conf:"default:0.05"`
 		}
 	}{
 		Version: conf.Version{
@@ -147,6 +158,21 @@ func run(log *log.Logger) error {
 		db.Close()
 	}()
 
+	// =========================================================================
+	// Start Tracing Support
+
+	log.Printf("main: initializing OT/Zipkin tracing support")
+
+	traceProvider, err := startTracing(
+		cfg.Zipkin.ServiceName,
+		cfg.Zipkin.ReporterURI,
+		cfg.Zipkin.Probability,
+	)
+	if err != nil {
+		return fmt.Errorf("starting tracing: %w", err)
+	}
+	defer traceProvider.Shutdown(context.Background())
+
 	// =============================================================================================
 	// Start Debug Service
 	//
@@ -202,4 +228,40 @@ func run(log *log.Logger) error {
 	}
 
 	return nil
+}
+
+// startTracing configure open telemetry to be used with zipkin.
+func startTracing(serviceName string, reporterURI string, probability float64) (*trace.TracerProvider, error) {
+
+	// WARNING: The current settings are using defaults which may not be
+	// compatible with your project. Please review the documentation for
+	// opentelemetry.
+
+	exporter, err := zipkin.New(
+		reporterURI,
+		// zipkin.WithLogger(zap.NewStdLog(log)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating new exporter: %w", err)
+	}
+
+	traceProvider := trace.NewTracerProvider(
+		trace.WithSampler(trace.TraceIDRatioBased(probability)),
+		trace.WithBatcher(exporter,
+			trace.WithMaxExportBatchSize(trace.DefaultMaxExportBatchSize),
+			trace.WithBatchTimeout(trace.DefaultScheduleDelay*time.Millisecond),
+			trace.WithMaxExportBatchSize(trace.DefaultMaxExportBatchSize),
+		),
+		trace.WithResource(
+			resource.NewWithAttributes(
+				semconv.SchemaURL,
+				semconv.ServiceNameKey.String(serviceName),
+				attribute.String("exporter", "zipkin"),
+			),
+		),
+	)
+
+	// I can only get this working properly using the singleton :(
+	otel.SetTracerProvider(traceProvider)
+	return traceProvider, nil
 }

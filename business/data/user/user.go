@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -125,6 +126,10 @@ func (r UserRepository) Delete(ctx context.Context, traceID string, userID strin
 }
 
 func (r UserRepository) Query(ctx context.Context, traceID string) ([]User, error) {
+	currentSpan := trace.SpanFromContext(ctx)
+	ctx, span := currentSpan.TracerProvider().Tracer("").Start(ctx, "UserRepository.Query")
+	defer span.End()
+
 	const q = `SELECT * FROM users`
 
 	r.log.Printf("%s : %s : query : %s", traceID, "UserRepository.Query",
